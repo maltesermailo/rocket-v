@@ -1,4 +1,4 @@
-pub const OP_OPCODE: u32 = 0b0010011;
+pub const OP_OPCODE: u32 = 0b0110011;
 
 struct IntOpOpcodeGroup {
 
