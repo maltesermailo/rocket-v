@@ -12,47 +12,43 @@ type ExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1:
 
 
 fn exec_addi(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] + imm;
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] + imm);
 }
 
 fn exec_xori(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] ^ imm;
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] ^ imm);
 }
 
 fn exec_ori(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] | imm;
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] | imm);
 }
 
 fn exec_andi(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] & imm;
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] & imm);
 }
 
 fn exec_slli(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
     let shift = (imm & 0x1F) as u32;
-
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] << shift;
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] << shift);
 }
 
 fn exec_srli_srai(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
     let shift = (imm & 0x1F) as u32;
     let is_arith = (imm >> 5) == 0x20;
 
-    if(!is_arith) {
-        cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] >> shift;
+    if !is_arith {
+        cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] >> shift);
     } else {
-        cpu_context.x[rd as usize] = (cpu_context.x[rs1 as usize] as i64 >> shift) as u64;
+        cpu_context.set_register(rd as usize, (cpu_context.x[rs1 as usize] as i64 >> shift) as u64);
     }
 }
+
 fn exec_slti(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = if((cpu_context.x[rs1 as usize] as i64) < (imm as i64)) { 1 } else { 0 };
+    cpu_context.set_register(rd as usize, if (cpu_context.x[rs1 as usize] as i64) < (imm as i64) { 1 } else { 0 });
 }
 
 fn exec_sltiu(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-    cpu_context.x[rd as usize] = if(cpu_context.x[rs1 as usize] < imm) { 1 } else { 0 };
-}
-
-fn exec_unknown(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) {
-
+    cpu_context.set_register(rd as usize, if cpu_context.x[rs1 as usize] < imm { 1 } else { 0 });
 }
 
 
@@ -70,7 +66,7 @@ impl ParsableInstructionGroup for IntOpImmOpcodeGroup {
             (0x5, 0x0)  => wrap_i_type_sh!(exec_srli_srai),
             (0x2, 0x0)  => wrap_i_type!(exec_slti),
             (0x3, 0x0)  => wrap_i_type!(exec_sltiu),
-            _ => wrap_i_type!(exec_unknown)
+            _ => |_,_| {}
         }
     }
 }

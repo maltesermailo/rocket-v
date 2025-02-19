@@ -2,13 +2,26 @@ use crate::emulator::state::memory::Memory;
 
 pub struct RV64CPUContext {
     pub(crate) x: [u64; 32], //General purpose registers
-    pc: u64, //Program counter
+    pub(crate) pc: u64, //Program counter
 
-    memory: Memory,
+    pub(crate) memory: Memory,
 }
 
 impl RV64CPUContext {
     fn new(memory_size: usize) -> Self {
         Self { x: [0; 32], pc: 0, memory: Memory::new(memory_size) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn set_register(&mut self, register: usize, value: u64) {
+        if(register == 0) {
+            return
+        }
+
+        if(register > 31) {
+            return
+        }
+
+        self.x[register] = value;
     }
 }

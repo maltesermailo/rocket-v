@@ -12,43 +12,43 @@ type ExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1:
 
 
 fn exec_add(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] + cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] + cpu_context.x[rs2 as usize]);
 }
 
 fn exec_sub(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] - cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] - cpu_context.x[rs2 as usize]);
 }
 
 fn exec_xor(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] ^ cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] ^ cpu_context.x[rs2 as usize]);
 }
 
 fn exec_or(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] | cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] | cpu_context.x[rs2 as usize]);
 }
 
 fn exec_and(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] & cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] & cpu_context.x[rs2 as usize]);
 }
 
 fn exec_sll(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] << cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] << cpu_context.x[rs2 as usize]);
 }
 
 fn exec_srl(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = cpu_context.x[rs1 as usize] >> cpu_context.x[rs2 as usize];
+    cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] >> cpu_context.x[rs2 as usize]);
 }
 
 fn exec_sra(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = (cpu_context.x[rs1 as usize] as i64 >> cpu_context.x[rs2 as usize]) as u64;
+    cpu_context.set_register(rd as usize, (cpu_context.x[rs1 as usize] as i64 >> cpu_context.x[rs2 as usize]) as u64);
 }
 
 fn exec_slt(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = if((cpu_context.x[rs1 as usize] as i64) < (cpu_context.x[rs2 as usize] as i64)) { 1 } else { 0 };
+    cpu_context.set_register(rd as usize, if (cpu_context.x[rs1 as usize] as i64) < (cpu_context.x[rs2 as usize] as i64) { 1 } else { 0 });
 }
 
 fn exec_sltu(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-    cpu_context.x[rd as usize] = if(cpu_context.x[rs1 as usize] < cpu_context.x[rs2 as usize]) { 1 } else { 0 };
+    cpu_context.set_register(rd as usize, if cpu_context.x[rs1 as usize] < cpu_context.x[rs2 as usize] { 1 } else { 0 });
 }
 
 fn exec_unknown(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
@@ -72,7 +72,7 @@ impl ParsableInstructionGroup for IntOpOpcodeGroup {
             (0x5, 0x20) => wrap_r_type!(exec_sra),
             (0x2, 0x0)  => wrap_r_type!(exec_slt),
             (0x3, 0x0)  => wrap_r_type!(exec_sltu),
-            _ => wrap_r_type!(exec_unknown)
+            _ => |_,_| {}
         }
     }
 }
