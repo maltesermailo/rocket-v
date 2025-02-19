@@ -1,7 +1,7 @@
 use crate::emulator::state::memory::Memory;
 
 pub struct RV64CPUContext {
-    x: [u64; 32], //General purpose registers
+    pub(crate) x: [u64; 32], //General purpose registers
     pc: u64, //Program counter
 
     memory: Memory,
