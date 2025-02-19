@@ -1,5 +1,15 @@
 use crate::emulator::state::memory::Memory;
 
+#[derive(Debug)]
+pub enum Exception {
+    LoadAccessFault,
+    StoreAccessFault,
+    IllegalInstruction,
+    MisalignedLoad,
+    MisalignedStore,
+    // Add other RISC-V exceptions as needed
+}
+
 pub struct RV64CPUContext {
     pub(crate) x: [u64; 32], //General purpose registers
     pub(crate) pc: u64, //Program counter

@@ -1,11 +1,16 @@
+use crate::emulator::state::rv64_cpu_context::Exception;
+
 pub mod int_op;
 pub mod int_op_imm;
 pub mod jump_branch;
+mod load_store;
+
+type InstructionResult = Result<(), Exception>;
 
 #[macro_export] macro_rules! wrap_r_type {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let rd = ((instr >> 7) & 0x1F) as u8;
                 let rs1 = ((instr >> 15) & 0x1F) as u8;
                 let rs2 = ((instr >> 20) & 0x1F) as u8;
@@ -19,7 +24,7 @@ pub mod jump_branch;
 #[macro_export] macro_rules! wrap_j_type {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let rd = ((instr >> 7) & 0x1F) as u8;
 
                 let imm110 = (((instr >> 21) & 0x3FF) as u64) << 1; //Bits 1 to 11
@@ -43,7 +48,7 @@ pub mod jump_branch;
 #[macro_export] macro_rules! wrap_i_type {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let rd = ((instr >> 7) & 0x1F) as u8;
                 let rs1 = ((instr >> 15) & 0x1F) as u8;
                 let mut imm = ((instr >> 20)) as u64;
@@ -64,7 +69,7 @@ pub mod jump_branch;
 #[macro_export] macro_rules! wrap_i_type_sh {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let rd = ((instr >> 7) & 0x1F) as u8;
                 let rs1 = ((instr >> 15) & 0x1F) as u8;
                 let imm = ((instr >> 20)) as u64;
@@ -79,7 +84,7 @@ pub mod jump_branch;
 #[macro_export] macro_rules! wrap_b_type {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let imm1_4 = (((instr >> 8) & 0xF) as u64) << 1; //Bits 1 to 4
                 let imm5_10 = (((instr >> 25) & 0x3F) as u64) << 5; //Bits 5 to 10
                 let imm11 = (((instr >> 7) & 1) as u64) << 11; //Bit 11
@@ -103,7 +108,7 @@ pub mod jump_branch;
 #[macro_export] macro_rules! wrap_b_type_u {
     ($exec_fn:ident) => {
         {
-            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
                 let imm1_4 = (((instr >> 8) & 0xF) as u64) << 1; //Bits 1 to 4
                 let imm5_10 = (((instr >> 25) & 0x3F) as u64) << 5; //Bits 5 to 10
                 let imm11 = (((instr >> 7) & 1) as u64) << 11; //Bit 11
@@ -112,6 +117,35 @@ pub mod jump_branch;
                 let rs2 = ((instr >> 20) & 0x1F) as u8;
 
                 let imm = imm1_4 | imm5_10 | imm11 | imm12;
+
+                $exec_fn(cpu_context, instr, rs1, rs2, imm)
+            }
+            wrapper
+        }
+    }
+}
+
+#[macro_export] macro_rules! wrap_u_type {
+    ($exec_fn:ident) => {
+        {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
+                let imm = (((instr >> 12) & 0xFFFFF) as u64) << 12; //Bits 1 to 4
+                let rs1 = ((instr >> 7) & 0x1F) as u8;
+
+                $exec_fn(cpu_context, instr, rs1, imm)
+            }
+            wrapper
+        }
+    }
+}
+
+#[macro_export] macro_rules! wrap_s_type {
+    ($exec_fn:ident) => {
+        {
+            fn wrapper(cpu_context: &mut RV64CPUContext, instr: u32) -> Result<(), Exception> {
+                let imm = (((instr >> 25) & 0x3F) as u64) << 5 | (((instr >> 7) & 0x1F) as u64);
+                let rs1 = ((instr >> 15) & 0x1F) as u8;
+                let rs2 = ((instr >> 20) & 0x1F) as u8;
 
                 $exec_fn(cpu_context, instr, rs1, rs2, imm)
             }

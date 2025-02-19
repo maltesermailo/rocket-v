@@ -1,5 +1,5 @@
 use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
-use crate::emulator::state::rv64_cpu_context::RV64CPUContext;
+use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 use crate::wrap_r_type;
 
 pub const OP_OPCODE: u32 = 0b0110011;
@@ -8,51 +8,67 @@ struct IntOpOpcodeGroup {
 
 }
 
-type ExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8);
+type ExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception>;
 
 
-fn exec_add(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_add(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] + cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_sub(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_sub(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] - cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_xor(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_xor(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] ^ cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_or(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_or(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] | cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_and(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_and(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] & cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_sll(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_sll(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] << cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_srl(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_srl(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] >> cpu_context.x[rs2 as usize]);
+
+    Ok(())
 }
 
-fn exec_sra(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_sra(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, (cpu_context.x[rs1 as usize] as i64 >> cpu_context.x[rs2 as usize]) as u64);
+
+    Ok(())
 }
 
-fn exec_slt(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_slt(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, if (cpu_context.x[rs1 as usize] as i64) < (cpu_context.x[rs2 as usize] as i64) { 1 } else { 0 });
+
+    Ok(())
 }
 
-fn exec_sltu(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
+fn exec_sltu(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) -> Result<(), Exception> {
     cpu_context.set_register(rd as usize, if cpu_context.x[rs1 as usize] < cpu_context.x[rs2 as usize] { 1 } else { 0 });
-}
 
-fn exec_unknown(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: u8) {
-
+    Ok(())
 }
 
 
@@ -72,7 +88,7 @@ impl ParsableInstructionGroup for IntOpOpcodeGroup {
             (0x5, 0x20) => wrap_r_type!(exec_sra),
             (0x2, 0x0)  => wrap_r_type!(exec_slt),
             (0x3, 0x0)  => wrap_r_type!(exec_sltu),
-            _ => |_,_| {}
+            _ => |_,_| { Err(Exception::IllegalInstruction) }
         }
     }
 }

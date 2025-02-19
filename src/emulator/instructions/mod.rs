@@ -1,4 +1,4 @@
-use crate::emulator::state::rv64_cpu_context::RV64CPUContext;
+use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 
 pub mod rv64;
 
@@ -12,4 +12,4 @@ trait Instruction {
     fn execute(&self, cpu: &mut RV64CPUContext);
 }
 
-pub type InstructionFn = fn(&mut RV64CPUContext, instr: u32);
+pub type InstructionFn = fn(&mut RV64CPUContext, instr: u32) -> Result<(), Exception>;
