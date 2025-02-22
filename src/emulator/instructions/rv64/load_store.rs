@@ -3,14 +3,14 @@ use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 use crate::{wrap_b_type, wrap_b_type_u, wrap_i_type, wrap_i_type_sh, wrap_j_type, wrap_s_type};
 use crate::emulator::instructions::rv64::InstructionResult;
 
-pub const LOAD_OPCODE: u8 = 0b110_1111;
-pub const STORE_OPCODE: u8 = 0b110_0111;
+pub const LOAD_OPCODE: u8 = 0b0000011;
+pub const STORE_OPCODE: u8 = 0b0100011;
 
 
 
-struct LoadOpcodeGroup {}
+pub struct LoadOpcodeGroup {}
 
-struct StoreOpcodeGroup {}
+pub struct StoreOpcodeGroup {}
 
 
 type LoadExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64);
@@ -23,7 +23,7 @@ fn exec_load_byte(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8,
         return Err(Exception::LoadAccessFault);
     }
 
-    let mut value: u64 = cpu_context.memory.read(address as usize) as u64;
+    let mut value: u64 = cpu_context.memory.read_byte(address as usize) as u64;
 
     if (value & 0x80) > 0 {
         value |= !0xFF_u64;
@@ -86,7 +86,7 @@ fn exec_load_byte_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8,
         return Err(Exception::LoadAccessFault);
     }
 
-    let value: u64 = cpu_context.memory.read(address as usize) as u64;
+    let value: u64 = cpu_context.memory.read_byte(address as usize) as u64;
     cpu_context.set_register(rd as usize, value);
     Ok(())
 }
@@ -122,7 +122,7 @@ fn exec_store_byte(cpu_context: &mut RV64CPUContext, instr: u32, rs1: u8, rs2: u
         return Err(Exception::StoreAccessFault);
     }
 
-    cpu_context.memory.write(address as usize, cpu_context.x[rs2 as usize] as u8);
+    cpu_context.memory.write_byte(address as usize, cpu_context.x[rs2 as usize] as u8);
     Ok(())
 }
 

@@ -9,11 +9,11 @@ pub const BRANCH_OPCODE: u8 = 0b110_0011;
 
 
 
-struct JalOpcodeGroup {}
+pub struct JalOpcodeGroup {}
 
-struct JalrOpcodeGroup {}
+pub struct JalrOpcodeGroup {}
 
-struct BranchOpcodeGroup {}
+pub struct BranchOpcodeGroup {}
 
 type BranchExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rs1: u8, rs2: u8, imm: u64);
 type JalExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, imm: u64);

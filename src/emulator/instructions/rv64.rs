@@ -1,11 +1,41 @@
+use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
+use crate::emulator::instructions::rv64::int_op::{IntOpOpcodeGroup, OP_OPCODE};
+use crate::emulator::instructions::rv64::int_op_imm::{IntOpImmOpcodeGroup, LuiOpcodeGroup, LUI_OPCODE, AUIPC_OPCODE, OP_IMM_OPCODE, AuipcOpcodeGroup};
+use crate::emulator::instructions::rv64::jump_branch::{JalOpcodeGroup, JalrOpcodeGroup, JAL_OPCODE, JALR_OPCODE, BRANCH_OPCODE, BranchOpcodeGroup};
+use crate::emulator::instructions::rv64::load_store::{LoadOpcodeGroup, StoreOpcodeGroup, LOAD_OPCODE, STORE_OPCODE};
+use crate::emulator::instructions::rv64::system::{SystemOpcodeGroup, SYSTEM_OPCODE};
 use crate::emulator::state::rv64_cpu_context::Exception;
 
 pub mod int_op;
 pub mod int_op_imm;
 pub mod jump_branch;
-mod load_store;
+pub mod load_store;
+pub mod system;
 
 type InstructionResult = Result<(), Exception>;
+
+pub struct RV64InstructionParser {
+}
+
+impl RV64InstructionParser {
+    pub fn parse(instr: u32) -> InstructionFn {
+        let opcode: u8 = (instr & 0x7F) as u8;
+        
+        match opcode {
+            OP_OPCODE => IntOpOpcodeGroup::parse(instr),
+            OP_IMM_OPCODE => IntOpImmOpcodeGroup::parse(instr),
+            LUI_OPCODE => LuiOpcodeGroup::parse(instr),
+            AUIPC_OPCODE => AuipcOpcodeGroup::parse(instr),
+            JAL_OPCODE => JalOpcodeGroup::parse(instr),
+            JALR_OPCODE => JalrOpcodeGroup::parse(instr),
+            BRANCH_OPCODE => BranchOpcodeGroup::parse(instr),
+            LOAD_OPCODE => LoadOpcodeGroup::parse(instr),
+            STORE_OPCODE => StoreOpcodeGroup::parse(instr),
+            SYSTEM_OPCODE => SystemOpcodeGroup::parse(instr),
+            _ => { |_,_| { Err(Exception::IllegalInstruction) } }
+        }
+    }
+}
 
 #[macro_export] macro_rules! wrap_r_type {
     ($exec_fn:ident) => {

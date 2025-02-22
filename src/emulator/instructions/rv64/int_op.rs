@@ -2,9 +2,9 @@ use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
 use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 use crate::wrap_r_type;
 
-pub const OP_OPCODE: u32 = 0b0110011;
+pub const OP_OPCODE: u8 = 0b0110011;
 
-struct IntOpOpcodeGroup {
+pub struct IntOpOpcodeGroup {
 
 }
 

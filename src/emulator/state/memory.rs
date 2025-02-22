@@ -19,11 +19,11 @@ impl Memory {
         Self { memory: vec![0; size] }
     }
 
-    pub(crate) fn read(&self, addr: usize) -> u8 {
+    pub(crate) fn read_byte(&self, addr: usize) -> u8 {
         self.memory[addr]
     }
 
-    pub(crate) fn write(&mut self, addr: usize, byte: u8) {
+    pub(crate) fn write_byte(&mut self, addr: usize, byte: u8) {
         self.memory[addr] = byte;
     }
 
@@ -60,6 +60,18 @@ impl Memory {
 
         for i in 0..bytes.len() {
             self.memory[addr+i] = bytes[i];
+        }
+    }
+
+    pub fn write(&mut self, addr: usize, len: usize, value: &[u8]) {
+        for i in 0..len {
+            self.memory[addr+i] = value[i];
+        }
+    }
+
+    pub fn read(&mut self, addr: usize, len: usize, buf: &mut [u8]) {
+        for i in 0..len {
+            buf[i] = self.memory[addr+i];
         }
     }
 

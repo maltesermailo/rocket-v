@@ -7,10 +7,10 @@ pub const OP_IMM_OPCODE: u8 = 0b0010011;
 pub const LUI_OPCODE: u8 = 0b0110111;
 pub const AUIPC_OPCODE: u8 = 0b0010111;
 
-struct IntOpImmOpcodeGroup {}
+pub struct IntOpImmOpcodeGroup {}
 
-struct LuiOpcodeGroup {}
-struct AuipcOpcodeGroup {}
+pub struct LuiOpcodeGroup {}
+pub struct AuipcOpcodeGroup {}
 
 type ExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> Result<(), Exception>;
 
