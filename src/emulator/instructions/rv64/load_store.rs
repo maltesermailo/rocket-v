@@ -2,6 +2,7 @@ use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
 use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 use crate::{wrap_b_type, wrap_b_type_u, wrap_i_type, wrap_i_type_sh, wrap_j_type, wrap_s_type};
 use crate::emulator::instructions::rv64::InstructionResult;
+use crate::emulator::state::memory::Device;
 
 pub const LOAD_OPCODE: u8 = 0b0000011;
 pub const STORE_OPCODE: u8 = 0b0100011;
