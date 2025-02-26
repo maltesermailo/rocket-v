@@ -44,12 +44,12 @@ fn exec_slli(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm:
 }
 
 fn exec_srli_srai(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
-    let shift = (imm & 0x3F) as u32;  // RV64I uses 6-bit shift amount
+    let shift = imm & 0x1F;  // RV64I uses 6-bit shift amount
     if shift >= 64 {
         return Err(Exception::IllegalInstruction);
     }
 
-    let is_arith = (imm >> 6) == 0x20;
+    let is_arith = (imm >> 5) == 0x20;
 
     if !is_arith {
         cpu_context.set_register(rd as usize, cpu_context.x[rs1 as usize] >> shift);
@@ -83,17 +83,16 @@ fn exec_auipc(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, imm: u64) ->
 impl ParsableInstructionGroup for IntOpImmOpcodeGroup {
     fn parse(instr: u32) -> InstructionFn {
         let funct3 = ((instr >> 12) & 0x07) as u8;
-        let funct7 = ((instr >> 25) & 0x7F) as u8;
 
-        match (funct3, funct7) {
-            (0x0, 0x0)  => wrap_i_type!(exec_addi),
-            (0x4, 0x0)  => wrap_i_type!(exec_xori),
-            (0x6, 0x0)  => wrap_i_type!(exec_ori),
-            (0x7, 0x0)  => wrap_i_type!(exec_andi),
-            (0x1, 0x0)  => wrap_i_type_sh!(exec_slli),
-            (0x5, 0x0)  => wrap_i_type_sh!(exec_srli_srai),
-            (0x2, 0x0)  => wrap_i_type!(exec_slti),
-            (0x3, 0x0)  => wrap_i_type!(exec_sltiu),
+        match (funct3) {
+            0x0 => wrap_i_type!(exec_addi),
+            0x4  => wrap_i_type!(exec_xori),
+            0x6  => wrap_i_type!(exec_ori),
+            0x7  => wrap_i_type!(exec_andi),
+            0x1  => wrap_i_type_sh!(exec_slli),
+            0x5  => wrap_i_type_sh!(exec_srli_srai),
+            0x2  => wrap_i_type!(exec_slti),
+            0x3  => wrap_i_type!(exec_sltiu),
             _ => |_,_| { Err(Exception::IllegalInstruction) }
         }
     }
