@@ -42,7 +42,7 @@ impl Interpreter {
 
             }
             _ => {
-
+                panic!("Unhandled exception: {:?}", exception);
             }
         }
     }
@@ -50,7 +50,7 @@ impl Interpreter {
     fn handle_interrupt(&mut self, interrupt_no: u64) {
         match interrupt_no {
             _ => {
-
+                panic!("Interrupts?!");
             }
         }
     }

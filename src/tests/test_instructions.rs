@@ -107,6 +107,9 @@ pub fn test_jump_branch(#[case] instr: u32, #[case] rs1: u64, #[case] rs2: u64, 
 #[case::lh(0x40019283, 0xC00, 0xFFFF, 0xffffffffffffffff)] //Despite being only 16 bits long, these always have to be 64-bit -1 since they are sign-extended into the 64-bit register, the unsigned variants do it like expected.
 #[case::lw(0x4001a283, 0xC00, 0xFFFFFFFF, 0xffffffffffffffff)]
 #[case::ld(0x4001b283, 0xC00, 0xffffffffffffffff, 0xffffffffffffffff)]
+#[case::lbu(0x4001c283, 0xC00, 255, 255)]
+#[case::lhu(0x4001d283, 0xC00, 0xFFFF, 0xFFFF)]
+#[case::lwu(0x4001e283, 0xC00, 0xFFFFFFFF, 0xFFFFFFFF)]
 pub fn test_load(#[case] instr: u32, #[case] rs1: u64, #[case] load: u64, #[case] result: u64) {
     let mut cpu = RV64CPUContext::new(0x1000, 16384);
 
@@ -119,4 +122,17 @@ pub fn test_load(#[case] instr: u32, #[case] rs1: u64, #[case] load: u64, #[case
 
     assert!(instr_result.is_ok(), "exception {:?}", instr_result.expect_err("This shouldn't happen at all"));
     assert_eq!(cpu.x[5], result);
+}
+
+#[rstest]
+#[case::ecall(0x00000073)]
+#[case::ebreak(0x00100073)]
+pub fn test_ecall(#[case] instr: u32) {
+    let mut cpu = RV64CPUContext::new(0x1000, 1024);
+
+    let instr_fn = RV64InstructionParser::parse(instr);
+
+    let instr_result = instr_fn(&mut cpu, instr);
+
+    assert!(!instr_result.is_ok(), "no exception triggered, what happened?");
 }
