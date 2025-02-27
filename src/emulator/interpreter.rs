@@ -32,7 +32,7 @@ impl Interpreter {
 
             file.read(buf.as_mut_slice()).expect("Failed to read disk_image");
 
-            self.cpu_context.memory.write(0, len, buf.as_slice());
+            self.cpu_context.memory.write(0x1000, len, buf.as_slice());
         }
     }
 
@@ -56,7 +56,12 @@ impl Interpreter {
     }
 
     fn print_state(&self) {
+        println!("CPU STATE AT {:x}", self.cpu_context.pc);
+        for i in 0..31 {
+            println!("x{}: {:x}", i, self.cpu_context.x[i]);
+        }
 
+        println!("pc: {:x}", self.cpu_context.pc);
     }
 
     fn check_for_interrupt(&mut self) -> Result<(), Exception> {
@@ -83,6 +88,8 @@ impl Interpreter {
     }
 
     pub fn step(&mut self) -> Result<(), Exception> {
+        let old_pc = self.cpu_context.pc;
+        
         self.cycles += 1;
 
         let current_pc = self.cpu_context.pc;
@@ -92,6 +99,10 @@ impl Interpreter {
 
         let execution_result = instr_fn(&mut self.cpu_context, instr);
 
+        if self.cpu_context.pc == old_pc {
+            self.cpu_context.pc += 4;
+        }
+        
         //Check for instruction exception
         if let Err(e) = execution_result {
             return Err(e);
@@ -147,6 +158,13 @@ impl Interpreter {
             },
             "p" | "print" => {
                 self.print_state();
+            },
+            "h" | "help" => {
+                println!("Command list:");
+                println!("s | step => Advance program counter by one instruction");
+                println!("c | continue => Advance program counter until breakpoint or exit");
+                println!("b | break <x> => Set breakpoint at x");
+                println!("p | print => Print register state");
             }
             _ => println!("Unknown command. Type 'help' for commands."),
         }
