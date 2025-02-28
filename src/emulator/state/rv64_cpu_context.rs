@@ -91,6 +91,31 @@ pub enum CSRAddress {
     MTVal = 0x343,
     MIP = 0x344,
 
+    // Supervisor Trap Setup
+    SStatus = 0x100,
+    SIE = 0x104,
+    STVec = 0x105,
+    SCounterEn = 0x106,
+
+    // Supervisor Trap Handling
+    SScratch = 0x140,
+    SEPC = 0x141,
+    SCause = 0x142,
+    STVal = 0x143,
+    SIP = 0x144,
+
+    // Supervisor MMU
+    SATP = 0x180,
+
+    // Supervisor Debug
+    SContext = 0x5A8,
+
+    // Supervisor State Enable
+    SStateEn0 = 0x10D,
+    SStateEn1 = 0x10E,
+    SStateEn2 = 0x10F,
+    SStateEn3 = 0x110,
+
     // Machine Counters
     MCycle = 0xB00,
     MInstRet = 0xB02,
@@ -143,6 +168,41 @@ pub struct CSRFile {
     mcycle: u64,
     minstret: u64,
 
+    // Supervisor Trap Setup
+    sstatus: u64,
+    sie: u64,
+    stvec: u64,
+    scounteren: u64,
+
+    // Supervisor Trap Handling
+    sscratch: u64,
+    sepc: u64,
+    scause: u64,
+    stval: u64,
+    sip: u64,
+
+    // Supervisor MMU
+    satp: u64, //Root page table
+
+    // Supervisor debug register
+    scontext: u64,
+
+    // Supervisor State Enable Registers
+    sstateen0: u64,
+    sstateen1: u64,
+    sstateen2: u64,
+    sstateen3: u64,
+
+    //Floating point registers
+    fflags: u64,
+    frm: u64,
+    fcsr: u64,
+
+    //User mode registers
+    cycle: u64,
+    time: u64,
+    instret: u64,
+
     // Current privilege level
     current_privilege: PrivilegeMode,
 }
@@ -168,6 +228,27 @@ impl CSRFile {
             mip: 0, //Machine Pending Interrupts
             mcycle: 0, //Cycle counter
             minstret: 0, //Instructions retired counter
+            sstatus: 0, //Supervisor status
+            sie: 0, //Supervisor Interrupt Enable
+            stvec: 0,//Supervisor Trap Handler Base Address
+            scounteren: 0,//Supervisor Hardware Counter Enable
+            sscratch: 0,//Thread-local storage
+            sepc: 0,//Supervisor Exception Return Address
+            scause: 0,//Supervisor Exception cause
+            stval: 0,//Trap Value, contains page-fault address
+            sip: 0,//Supervisor Pending Interrupts
+            satp: 0,//Supervisor Root Page Table
+            scontext: 0,
+            sstateen0: 0,
+            sstateen1: 0,
+            sstateen2: 0,
+            sstateen3: 0,
+            fflags: 0,
+            frm: 0,
+            fcsr: 0,
+            cycle: 0,
+            time: 0,
+            instret: 0,
             current_privilege: PrivilegeMode::Machine,
         }
     }
@@ -180,7 +261,73 @@ impl CSRFile {
         self.current_privilege = privilege;
     }
 
+    // Helper method to determine required privilege level for a CSR
+    fn get_required_privilege_for_csr(&self, csr_addr: u16) -> PrivilegeMode {
+        // In RISC-V, CSR address space is divided based on privilege:
+        // The two most significant bits indicate the lowest privilege that can access the CSR
+        match (csr_addr >> 10) & 0b11 {
+            0b00 => PrivilegeMode::User,      // User/unprivileged CSRs (0x000-0x3FF)
+            0b01 => PrivilegeMode::Supervisor, // Supervisor CSRs (0x400-0x7FF)
+            0b10 => PrivilegeMode::Machine,    // Reserved for hypervisor CSRs (0x800-0xBFF) - treat as machine
+            0b11 => PrivilegeMode::Machine,    // Machine CSRs (0xC00-0xFFF)
+            _ => unreachable!(), // This should never happen as we're only using 2 bits
+        }
+    }
+
+    // Helper method to check if a CSR is read-only
+    fn is_csr_read_only(&self, csr_addr: u16) -> bool {
+        // In RISC-V, bits 11:10 of the CSR address indicate the access mode
+        match (csr_addr >> 10) & 0b11 {
+            0b11 => true,  // Read-only CSRs
+            _ => false,    // Read-write CSRs
+        }
+    }
+
+    // Additional method to check if counter CSRs are accessible based on privilege
+    fn is_counter_accessible(&self, csr_addr: u16) -> bool {
+        // For user-mode access to counters, check MCOUNTEREN/SCOUNTEREN
+        if self.current_privilege == PrivilegeMode::User {
+            if csr_addr == 0xC00 || csr_addr == 0xC01 || csr_addr == 0xC02 { // cycle, time, instret
+                // Check if MCOUNTEREN and SCOUNTEREN allow access
+                let counter_bit = 1 << (csr_addr & 0x1F);
+                return (self.mcounteren & counter_bit) != 0 && (self.scounteren & counter_bit) != 0;
+            }
+        }
+        // For supervisor-mode access to counters, check only MCOUNTEREN
+        else if self.current_privilege == PrivilegeMode::Supervisor {
+            if csr_addr == 0xC00 || csr_addr == 0xC01 || csr_addr == 0xC02 { // cycle, time, instret
+                // Check if MCOUNTEREN allows access
+                let counter_bit = 1 << (csr_addr & 0x1F);
+                return (self.mcounteren & counter_bit) != 0;
+            }
+        }
+        // Machine mode has access to all counters
+        true
+    }
+
+    // Combined method to check CSR accessibility
+    pub fn is_csr_accessible(&self, csr_addr: u16) -> bool {
+        // Check privilege level
+        let required_privilege = self.get_required_privilege_for_csr(csr_addr);
+        if (self.current_privilege as u8) < (required_privilege as u8) {
+            return false;
+        }
+
+        // Special case for counter CSRs
+        if (csr_addr >= 0xC00 && csr_addr <= 0xC1F) {
+            return self.is_counter_accessible(csr_addr);
+        }
+
+        true
+    }
+
     pub fn read_csr(&self, csr_addr: u16) -> Result<u64, Exception> {
+        let required_privilege = self.get_required_privilege_for_csr(csr_addr);
+
+        if (self.current_privilege as u8) < (required_privilege as u8) {
+            return Err(Exception::IllegalInstruction);
+        }
+
         match csr_addr {
             // Machine Information Registers
             x if x == CSRAddress::MVendorID as u16 => Ok(self.mvendorid),
@@ -208,12 +355,47 @@ impl CSRFile {
             x if x == CSRAddress::MCycle as u16 => Ok(self.mcycle),
             x if x == CSRAddress::MInstRet as u16 => Ok(self.minstret),
 
+            // Supervisor Trap Setup
+            x if x == CSRAddress::SStatus as u16 => Ok(self.read_sstatus()),
+            x if x == CSRAddress::SIE as u16 => Ok(self.read_sie()),
+            x if x == CSRAddress::STVec as u16 => Ok(self.stvec),
+            x if x == CSRAddress::SCounterEn as u16 => Ok(self.scounteren),
+
+            // Supervisor Trap Handling
+            x if x == CSRAddress::SScratch as u16 => Ok(self.sscratch),
+            x if x == CSRAddress::SEPC as u16 => Ok(self.sepc),
+            x if x == CSRAddress::SCause as u16 => Ok(self.scause),
+            x if x == CSRAddress::STVal as u16 => Ok(self.stval),
+            x if x == CSRAddress::SIP as u16 => Ok(self.read_sip()),
+
+            // Supervisor MMU
+            x if x == CSRAddress::SATP as u16 => Ok(self.satp),
+
+            // Supervisor Debug
+            x if x == CSRAddress::SContext as u16 => Ok(self.scontext),
+
+            // Supervisor State Enable
+            x if x == CSRAddress::SStateEn0 as u16 => Ok(self.sstateen0),
+            x if x == CSRAddress::SStateEn1 as u16 => Ok(self.sstateen1),
+            x if x == CSRAddress::SStateEn2 as u16 => Ok(self.sstateen2),
+            x if x == CSRAddress::SStateEn3 as u16 => Ok(self.sstateen3),
+
             // Invalid or unimplemented CSR
             _ => Err(Exception::IllegalInstruction),
         }
     }
 
     pub fn write_csr(&mut self, csr_addr: u16, value: u64) -> Result<(), Exception> {
+        let required_privilege = self.get_required_privilege_for_csr(csr_addr);
+
+        if (self.current_privilege as u8) < (required_privilege as u8) {
+            return Err(Exception::IllegalInstruction);
+        }
+
+        if self.is_csr_read_only(csr_addr) {
+            return Err(Exception::IllegalInstruction);
+        }
+
         match csr_addr {
             // Machine Information Registers - Read-Only
             x if x == CSRAddress::MVendorID as u16
@@ -240,7 +422,7 @@ impl CSRFile {
                 Ok(())
             },
             x if x == CSRAddress::MIE as u16 => {
-                //self.write_mie(value);
+                self.write_mie(value);
                 Ok(())
             },
             x if x == CSRAddress::MTVec as u16 => {
@@ -285,8 +467,174 @@ impl CSRFile {
                 Ok(())
             },
 
+            // Supervisor Trap Setup
+            x if x == CSRAddress::SStatus as u16 => {
+                self.write_sstatus(value);
+                Ok(())
+            },
+            x if x == CSRAddress::SIE as u16 => {
+                self.write_sie(value);
+                Ok(())
+            },
+            x if x == CSRAddress::STVec as u16 => {
+                self.stvec = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SCounterEn as u16 => {
+                self.scounteren = value;
+                Ok(())
+            },
+
+            // Supervisor Trap Handling
+            x if x == CSRAddress::SScratch as u16 => {
+                self.sscratch = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SEPC as u16 => {
+                self.sepc = value & !0b1;
+                Ok(())
+            },
+            x if x == CSRAddress::SCause as u16 => {
+                self.scause = value;
+                Ok(())
+            },
+            x if x == CSRAddress::STVal as u16 => {
+                self.stval = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SIP as u16 => {
+                self.write_sip(value);
+                Ok(())
+            },
+
+            // Supervisor MMU
+            x if x == CSRAddress::SATP as u16 => {
+                // Additional check for SATP: when in S-mode, writing to SATP might be disabled
+                // by TVM bit in MSTATUS (trap virtual memory)
+                if self.current_privilege == PrivilegeMode::Supervisor {
+                    // Check if TVM bit is set (bit 20 in MSTATUS)
+                    if (self.mstatus & (1 << 20)) != 0 {
+                        return Err(Exception::IllegalInstruction);
+                    }
+                }
+                self.satp = value;
+                Ok(())
+            },
+
+            // Supervisor Debug
+            x if x == CSRAddress::SContext as u16 => {
+                self.scontext = value;
+                Ok(())
+            },
+
+            // Supervisor State Enable
+            x if x == CSRAddress::SStateEn0 as u16 => {
+                self.sstateen0 = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SStateEn1 as u16 => {
+                self.sstateen1 = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SStateEn2 as u16 => {
+                self.sstateen2 = value;
+                Ok(())
+            },
+            x if x == CSRAddress::SStateEn3 as u16 => {
+                self.sstateen3 = value;
+                Ok(())
+            },
+
             // Invalid or unimplemented CSR
             _ => Err(Exception::IllegalInstruction),
+        }
+    }
+
+    // SSTATUS is a subset of MSTATUS
+    fn read_sstatus(&self) -> u64 {
+        // SSTATUS is a subset of MSTATUS
+        // Mask to extract the S-mode accessible bits
+        let mask = MStatusFlags::SIE.bits()
+            | MStatusFlags::SPIE.bits()
+            | MStatusFlags::UBE.bits()
+            | MStatusFlags::SPP.bits()
+            | MStatusFlags::SBE.bits()
+            | FS_MASK  // FS bits
+            | XS_MASK  // XS bits
+            | MStatusFlags::SD.bits();
+
+        self.mstatus & mask
+    }
+
+    fn write_sstatus(&mut self, value: u64) {
+        // Mask for writable bits in SSTATUS
+        let mask = MStatusFlags::SIE.bits()
+            | MStatusFlags::SPIE.bits()
+            | MStatusFlags::UBE.bits()
+            | MStatusFlags::SPP.bits()
+            | MStatusFlags::SBE.bits()
+            | FS_MASK;  // FS bits
+        // XS bits are typically read-only
+
+        // Clear the writable bits
+        let cleared = self.mstatus & !mask;
+
+        // Set the new values for writable bits
+        self.mstatus = cleared | (value & mask);
+
+        // Update the SD bit based on FS and XS
+        self.update_sd_bit();
+    }
+
+    // SIE is a subset of MIE
+    fn read_sie(&self) -> u64 {
+        // SIE is MIE masked by mideleg
+        self.mie & self.mideleg
+    }
+
+    fn write_sie(&mut self, value: u64) {
+        // Only delegated interrupts can be controlled via SIE
+        let mask = self.mideleg;
+
+        // Clear the delegated bits in MIE
+        let cleared = self.mie & !mask;
+
+        // Set the new values for delegated bits
+        self.mie = cleared | (value & mask);
+    }
+
+    // SIP is a subset of MIP
+    fn read_sip(&self) -> u64 {
+        // SIP is MIP masked by mideleg
+        self.mip & self.mideleg
+    }
+
+    fn write_sip(&mut self, value: u64) {
+        // Only certain bits of SIP are writable by software
+        // And only those that are delegated
+        let writable_mask = MIPFlags::USIP.bits() | MIPFlags::SSIP.bits();
+        let delegated_mask = self.mideleg;
+
+        let effective_mask = writable_mask & delegated_mask;
+
+        // Clear the writable and delegated bits
+        let cleared = self.mip & !effective_mask;
+
+        // Set the new values for writable and delegated bits
+        self.mip = cleared | (value & effective_mask);
+    }
+
+    // Helper to update the SD bit based on FS and XS
+    fn update_sd_bit(&mut self) {
+        let fs = (self.mstatus & FS_MASK) >> FS_SHIFT;
+        let xs = (self.mstatus & XS_MASK) >> XS_SHIFT;
+
+        // Clear the SD bit
+        self.mstatus &= !MStatusFlags::SD.bits();
+
+        // Set SD if FS or XS are 11 (dirty)
+        if fs == 0b11 || xs == 0b11 {
+            self.mstatus |= MStatusFlags::SD.bits();
         }
     }
 
@@ -327,6 +675,14 @@ impl CSRFile {
             (valid_mpp << MPP_SHIFT) |
             (fs << FS_SHIFT) |
             (xs << XS_SHIFT);
+    }
+
+    fn write_mie(&mut self, value: u64) {
+        // Only delegated interrupts can be controlled via SIE
+        let mie = MIEFlags::from_bits_truncate(value);
+
+        // Set the new values for delegated bits
+        self.mie = mie.bits();
     }
 }
 

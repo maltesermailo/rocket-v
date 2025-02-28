@@ -63,7 +63,15 @@ impl MemoryManagementUnit {
 
     pub fn read(&mut self, addr: usize, size: usize, buf: &mut [u8]) {
         if let Some(region) = self.find_region(addr) {
-            region.device.read(addr, size, buf);
+            region.device.read(addr - region.start, size, buf);
+        } else {
+            panic!("Memory access violation at address {:#x}", addr)
+        }
+    }
+
+    pub fn write(&mut self, addr: usize, size: usize, buf: &mut [u8]) {
+        if let Some(region) = self.find_region(addr) {
+            region.device.write(addr - region.start, size, buf);
         } else {
             panic!("Memory access violation at address {:#x}", addr)
         }
