@@ -11,6 +11,7 @@ pub mod int_op_imm;
 pub mod jump_branch;
 pub mod load_store;
 pub mod system;
+mod amo;
 
 type InstructionResult = Result<(), Exception>;
 
