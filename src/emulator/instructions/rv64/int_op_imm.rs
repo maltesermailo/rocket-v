@@ -4,10 +4,15 @@ use crate::{wrap_i_type, wrap_i_type_sh, wrap_u_type};
 use crate::emulator::instructions::rv64::InstructionResult;
 
 pub const OP_IMM_OPCODE: u8 = 0b0010011;
+
+pub const OP_IMM_32_OPCODE: u8 = 0b0011011;
+
 pub const LUI_OPCODE: u8 = 0b0110111;
 pub const AUIPC_OPCODE: u8 = 0b0010111;
 
 pub struct IntOpImmOpcodeGroup {}
+
+pub struct IntOpImm32OpcodeGroup {}
 
 pub struct LuiOpcodeGroup {}
 pub struct AuipcOpcodeGroup {}
@@ -35,7 +40,7 @@ fn exec_andi(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm:
 }
 
 fn exec_slli(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
-    let shift = (imm & 0x3F) as u32;  // RV64I uses 6-bit shift amount
+    let shift = imm & 0x3F;  // RV64I uses 6-bit shift amount
     if shift >= 64 {
         return Err(Exception::IllegalInstruction);
     }
@@ -44,7 +49,7 @@ fn exec_slli(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm:
 }
 
 fn exec_srli_srai(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
-    let shift = imm & 0x1F;  // RV64I uses 6-bit shift amount
+    let shift = imm & 0x3F;  // RV64I uses 6-bit shift amount
     if shift >= 64 {
         return Err(Exception::IllegalInstruction);
     }
@@ -80,6 +85,38 @@ fn exec_auipc(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, imm: u64) ->
     Ok(())
 }
 
+fn exec_addiw(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let x = (cpu_context.x[rs1 as usize] as u32).wrapping_add(imm as u32) as i32 as i64 as u64;
+
+    cpu_context.set_register(rd as usize, x);
+    Ok(())
+}
+
+fn exec_slliw(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let shift = (imm & 0x1F) as u32;  // RV64I uses 5-bit shift amount
+    if shift >= 32 {
+        return Err(Exception::IllegalInstruction);
+    }
+    cpu_context.set_register(rd as usize, ((cpu_context.x[rs1 as usize] as u32) << shift) as i32 as i64 as u64);
+    Ok(())
+}
+
+fn exec_srliw_sraiw(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let shift = imm & 0x1F;  // RV64I uses 5-bit shift amount
+    if shift >= 32 {
+        return Err(Exception::IllegalInstruction);
+    }
+
+    let is_arith = (imm >> 5) == 0x20;
+
+    if !is_arith {
+        cpu_context.set_register(rd as usize, ((cpu_context.x[rs1 as usize] as u32) >> shift) as i32 as i64 as u64);
+    } else {
+        cpu_context.set_register(rd as usize, ((cpu_context.x[rs1 as usize] as i32) >> shift) as i64 as u64);
+    }
+    Ok(())
+}
+
 impl ParsableInstructionGroup for IntOpImmOpcodeGroup {
     fn parse(instr: u32) -> InstructionFn {
         let funct3 = ((instr >> 12) & 0x07) as u8;
@@ -93,6 +130,19 @@ impl ParsableInstructionGroup for IntOpImmOpcodeGroup {
             0x5  => wrap_i_type_sh!(exec_srli_srai),
             0x2  => wrap_i_type!(exec_slti),
             0x3  => wrap_i_type!(exec_sltiu),
+            _ => |_,_| { Err(Exception::IllegalInstruction) }
+        }
+    }
+}
+
+impl ParsableInstructionGroup for IntOpImm32OpcodeGroup {
+    fn parse(instr: u32) -> InstructionFn {
+        let funct3 = ((instr >> 12) & 0x07) as u8;
+
+        match (funct3) {
+            0x0 => wrap_i_type!(exec_addiw),
+            0x1  => wrap_i_type_sh!(exec_slliw),
+            0x5  => wrap_i_type_sh!(exec_srliw_sraiw),
             _ => |_,_| { Err(Exception::IllegalInstruction) }
         }
     }

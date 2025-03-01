@@ -2,24 +2,34 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use rustyline::{DefaultEditor, Editor};
 use rustyline::history::DefaultHistory;
 use crate::emulator::instructions::rv64::RV64InstructionParser;
-use crate::emulator::state::memory::Device;
+use crate::emulator::state::memory::{Device, MemoryManagementUnit};
 use crate::emulator::state::rv64_cpu_context::{CSRAddress, Exception, MStatusFlags, RV64CPUContext};
 use crate::emulator::state::rv64_cpu_context::CSRAddress::MStatus;
 
-pub(crate) struct Interpreter {
-    cpu_context: RV64CPUContext,
-    cycles: usize,
-    breakpoints: HashSet<u64>,
+
+pub struct RV64Platform {
+    harts: Vec<Interpreter>,
+    mmu: Arc<RwLock<MemoryManagementUnit>>,
     editor: Editor<(), DefaultHistory>,
+    breakpoints: HashSet<u64>,
 }
 
-impl Interpreter {
+impl RV64Platform {
+    pub fn new(threads: u64, memory_size: u64) -> RV64Platform {
+        let mut platform = RV64Platform {
+            harts: vec![],
+            mmu: Arc::new(RwLock::new(MemoryManagementUnit::new(memory_size as usize))),
+            breakpoints: HashSet::new(),
+            editor: DefaultEditor::new().unwrap()
+        };
 
-    pub fn new(entrypoint: u64, memory_size: usize) -> Self {
-        Interpreter { cpu_context: RV64CPUContext::new(entrypoint, memory_size), cycles: 0, breakpoints: HashSet::new(), editor: DefaultEditor::new().unwrap() }
+        platform.harts.push(Interpreter::new(0x1000, platform.mmu.clone()));
+
+        platform
     }
 
     pub fn load_disk_image(&mut self, disk_image: &str) {
@@ -32,8 +42,75 @@ impl Interpreter {
 
             file.read(buf.as_mut_slice()).expect("Failed to read disk_image");
 
-            self.cpu_context.memory.write(0x1000, len, buf.as_slice());
+            self.mmu.write().unwrap().write(0x1000, len, buf.as_slice());
         }
+    }
+
+    pub fn debug_loop(&mut self, cycle_callback: fn(cycle: usize)) {
+        println!("RISC-V Debugger. Type 'help' for commands.");
+
+        loop {
+            match self.editor.readline("debug> ") {
+                Ok(line) => {
+                    self.editor.add_history_entry(line.as_str()).expect("Should work");
+                    self.handle_debug_command(&line, cycle_callback);
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
+    fn handle_debug_command(&mut self, line: &str, cycle_callback: fn(cycle: usize)) {
+        let args: Vec<&str> = line.split_whitespace().collect();
+        if args.is_empty() { return; }
+
+        match args[0] {
+            "s" | "step" => {
+                if let Err(e) = self.harts.first_mut().unwrap().step() {
+                    self.harts.first_mut().unwrap().handle_exception(e);
+                }
+            }
+            "c" | "continue" => {
+                while !self.breakpoints.contains(&self.harts.first_mut().unwrap().cpu_context.pc) {
+                    if let Err(e) = self.harts.first_mut().unwrap().step()  {
+                        self.harts.first_mut().unwrap().handle_exception(e);
+                        break;
+                    }
+                }
+                println!("Breakpoint hit at {:#x}", self.harts.first().unwrap().cpu_context.pc);
+            }
+            "b" | "break" => {
+                if args.len() > 1 {
+                    if let Ok(addr) = u64::from_str_radix(args[1].trim_start_matches("0x"), 16) {
+                        self.breakpoints.insert(addr);
+                        println!("Breakpoint set at {:#x}", addr);
+                    }
+                }
+            },
+            "p" | "print" => {
+                self.harts.first().unwrap().print_state();
+            },
+            "h" | "help" => {
+                println!("Command list:");
+                println!("s | step => Advance program counter by one instruction");
+                println!("c | continue => Advance program counter until breakpoint or exit");
+                println!("b | break <x> => Set breakpoint at x");
+                println!("p | print => Print register state");
+            }
+            _ => println!("Unknown command. Type 'help' for commands."),
+        }
+    }
+}
+
+pub(crate) struct Interpreter {
+    cpu_context: RV64CPUContext,
+    cycles: usize,
+}
+
+impl Interpreter {
+
+    pub fn new(entrypoint: u64, memory_management_unit: Arc<RwLock<MemoryManagementUnit>>) -> Self {
+        Interpreter { cpu_context: RV64CPUContext::new(entrypoint, memory_management_unit), cycles: 0 }
     }
 
     fn handle_exception(&mut self, exception: Exception) {
@@ -93,7 +170,7 @@ impl Interpreter {
         self.cycles += 1;
 
         let current_pc = self.cpu_context.pc;
-        let instr = self.cpu_context.memory.read_word(current_pc as usize);
+        let instr = self.cpu_context.memory.read().unwrap().read_word(current_pc as usize);
 
         let instr_fn = RV64InstructionParser::parse(instr);
 
@@ -111,63 +188,6 @@ impl Interpreter {
         self.check_for_interrupt()?;
 
         Ok(())
-    }
-
-    pub fn debug_loop(&mut self, cycle_callback: fn(cycle: usize)) {
-        println!("RISC-V Debugger. Type 'help' for commands.");
-
-        loop {
-            match self.editor.readline("debug> ") {
-                Ok(line) => {
-                    self.editor.add_history_entry(line.as_str()).expect("Should work");
-                    self.handle_debug_command(&line, cycle_callback);
-                }
-                Err(_) => break,
-            }
-        }
-    }
-
-    fn handle_debug_command(&mut self, line: &str, cycle_callback: fn(cycle: usize)) {
-        let args: Vec<&str> = line.split_whitespace().collect();
-        if args.is_empty() { return; }
-
-        match args[0] {
-            "s" | "step" => {
-                if let Err(e) = self.step() {
-                    self.handle_exception(e);
-                }
-                cycle_callback(self.cycles);
-            }
-            "c" | "continue" => {
-                while !self.breakpoints.contains(&self.cpu_context.pc) {
-                    if let Err(e) = self.step() {
-                        self.handle_exception(e);
-                        break;
-                    }
-                    cycle_callback(self.cycles);
-                }
-                println!("Breakpoint hit at {:#x}", self.cpu_context.pc);
-            }
-            "b" | "break" => {
-                if args.len() > 1 {
-                    if let Ok(addr) = u64::from_str_radix(args[1].trim_start_matches("0x"), 16) {
-                        self.breakpoints.insert(addr);
-                        println!("Breakpoint set at {:#x}", addr);
-                    }
-                }
-            },
-            "p" | "print" => {
-                self.print_state();
-            },
-            "h" | "help" => {
-                println!("Command list:");
-                println!("s | step => Advance program counter by one instruction");
-                println!("c | continue => Advance program counter until breakpoint or exit");
-                println!("b | break <x> => Set breakpoint at x");
-                println!("p | print => Print register state");
-            }
-            _ => println!("Unknown command. Type 'help' for commands."),
-        }
     }
 
     pub fn main_loop(&mut self, cycle_callback: fn(cycle: usize)) {

@@ -1,6 +1,6 @@
 use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
-use crate::emulator::instructions::rv64::int_op::{IntOpOpcodeGroup, OP_OPCODE};
-use crate::emulator::instructions::rv64::int_op_imm::{IntOpImmOpcodeGroup, LuiOpcodeGroup, LUI_OPCODE, AUIPC_OPCODE, OP_IMM_OPCODE, AuipcOpcodeGroup};
+use crate::emulator::instructions::rv64::int_op::{IntOp32OpcodeGroup, IntOpOpcodeGroup, OP_OPCODE, OP_32_OPCODE};
+use crate::emulator::instructions::rv64::int_op_imm::{IntOpImmOpcodeGroup, LuiOpcodeGroup, LUI_OPCODE, AUIPC_OPCODE, OP_IMM_OPCODE, OP_IMM_32_OPCODE, AuipcOpcodeGroup, IntOpImm32OpcodeGroup};
 use crate::emulator::instructions::rv64::jump_branch::{JalOpcodeGroup, JalrOpcodeGroup, JAL_OPCODE, JALR_OPCODE, BRANCH_OPCODE, BranchOpcodeGroup};
 use crate::emulator::instructions::rv64::load_store::{LoadOpcodeGroup, StoreOpcodeGroup, LOAD_OPCODE, STORE_OPCODE};
 use crate::emulator::instructions::rv64::system::{SystemOpcodeGroup, SYSTEM_OPCODE};
@@ -23,7 +23,9 @@ impl RV64InstructionParser {
         
         match opcode {
             OP_OPCODE => IntOpOpcodeGroup::parse(instr),
+            OP_32_OPCODE => IntOp32OpcodeGroup::parse(instr),
             OP_IMM_OPCODE => IntOpImmOpcodeGroup::parse(instr),
+            OP_IMM_32_OPCODE => IntOpImm32OpcodeGroup::parse(instr),
             LUI_OPCODE => LuiOpcodeGroup::parse(instr),
             AUIPC_OPCODE => AuipcOpcodeGroup::parse(instr),
             JAL_OPCODE => JalOpcodeGroup::parse(instr),

@@ -1,4 +1,5 @@
-use crate::emulator::state::memory::Memory;
+use std::sync::{Arc, RwLock};
+use crate::emulator::state::memory::{Memory, MemoryManagementUnit};
 use bitflags::bitflags;
 
 // MSTATUS register flags
@@ -691,12 +692,12 @@ pub struct RV64CPUContext {
     pub(crate) pc: u64, //Program counter
     pub(crate) csrs: CSRFile,
 
-    pub(crate) memory: Memory,
+    pub(crate) memory: Arc<RwLock<MemoryManagementUnit>>,
 }
 
 impl RV64CPUContext {
-    pub fn new(pc: u64, memory_size: usize) -> Self {
-        Self { x: [0; 32], pc: pc, memory: Memory::new(memory_size), csrs: CSRFile::new() }
+    pub fn new(pc: u64, memory: Arc<RwLock<MemoryManagementUnit>>) -> Self {
+        Self { x: [0; 32], pc, memory: memory, csrs: CSRFile::new() }
     }
 
     #[inline(always)]

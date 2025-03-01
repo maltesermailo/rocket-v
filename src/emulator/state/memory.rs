@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
 
 pub struct MemoryManagementUnit {
     regions: BTreeMap<usize, MemoryRegion>
@@ -11,10 +12,18 @@ struct MemoryRegion {
 }
 
 impl MemoryManagementUnit {
-    fn new() -> Self {
-        Self {
+    pub(crate) fn new(memory_size: usize) -> Self {
+        let mut mmu = Self {
             regions: BTreeMap::new(),
-        }
+        };
+
+        mmu.add_region(0, memory_size, Box::new(Memory::new(memory_size)));
+
+        mmu
+    }
+
+    pub fn new_guard(memory_size: usize) -> Arc<RwLock<Self>> {
+        Arc::new(RwLock::new(Self::new(memory_size)))
     }
 
     fn add_region(&mut self, start: usize, size: usize, device: Box<dyn Device>) {
@@ -45,9 +54,9 @@ impl MemoryManagementUnit {
         false
     }
 
-    fn find_region(&mut self, addr: usize) -> Option<&mut MemoryRegion> {
+    fn find_region(&self, addr: usize) -> Option<&MemoryRegion> {
         // Find the last region that starts before or at our address
-        self.regions.range_mut(..=addr)
+        self.regions.range(..=addr)
             .next_back()
             .map(|(_, region)| region)
             .filter(|region| addr < region.start + region.size)
@@ -61,7 +70,7 @@ impl MemoryManagementUnit {
             .filter(|region| addr < region.start + region.size)
     }
 
-    pub fn read(&mut self, addr: usize, size: usize, buf: &mut [u8]) {
+    pub fn read(&self, addr: usize, size: usize, buf: &mut [u8]) {
         if let Some(region) = self.find_region(addr) {
             region.device.read(addr - region.start, size, buf);
         } else {
@@ -69,15 +78,15 @@ impl MemoryManagementUnit {
         }
     }
 
-    pub fn write(&mut self, addr: usize, size: usize, buf: &mut [u8]) {
-        if let Some(region) = self.find_region(addr) {
+    pub fn write(&mut self, addr: usize, size: usize, buf: &[u8]) {
+        if let Some(region) = self.find_region_mut(addr) {
             region.device.write(addr - region.start, size, buf);
         } else {
             panic!("Memory access violation at address {:#x}", addr)
         }
     }
 
-    pub fn read_byte(&mut self, addr: usize) -> u8 {
+    pub fn read_byte(&self, addr: usize) -> u8 {
         if let Some(region) = self.find_region(addr) {
             region.device.read_byte(addr - region.start)
         } else {
@@ -93,7 +102,7 @@ impl MemoryManagementUnit {
         }
     }
 
-    pub fn read_half_word(&mut self, addr: usize) -> u16 {
+    pub fn read_half_word(&self, addr: usize) -> u16 {
         if let Some(region) = self.find_region(addr) {
             region.device.read_half_word(addr - region.start)
         } else {
@@ -109,7 +118,7 @@ impl MemoryManagementUnit {
         }
     }
 
-    pub fn read_word(&mut self, addr: usize) -> u32 {
+    pub fn read_word(&self, addr: usize) -> u32 {
         if let Some(region) = self.find_region(addr) {
             region.device.read_word(addr - region.start)
         } else {
@@ -125,7 +134,7 @@ impl MemoryManagementUnit {
         }
     }
 
-    pub fn read_double_word(&mut self, addr: usize) -> u64 {
+    pub fn read_double_word(&self, addr: usize) -> u64 {
         if let Some(region) = self.find_region(addr) {
             region.device.read_double_word(addr - region.start)
         } else {
@@ -139,6 +148,16 @@ impl MemoryManagementUnit {
         } else {
             panic!("Memory access violation at address {:#x}", addr)
         }
+    }
+
+    pub fn size(&self) -> u64 {
+        let mut len: u64 = 0;
+
+        for region in self.regions.iter() {
+            len += region.1.size as u64;
+        }
+
+        len
     }
 }
 
@@ -163,7 +182,7 @@ pub(crate) trait Device {
 
     fn write(&mut self, addr: usize, len: usize, value: &[u8]);
 
-    fn read(&mut self, addr: usize, len: usize, buf: &mut [u8]);
+    fn read(&self, addr: usize, len: usize, buf: &mut [u8]);
 
     fn size(&self) -> u64;
 
@@ -229,7 +248,7 @@ impl Device for Memory {
         }
     }
 
-    fn read(&mut self, addr: usize, len: usize, buf: &mut [u8]) {
+    fn read(&self, addr: usize, len: usize, buf: &mut [u8]) {
         for i in 0..len {
             buf[i] = self.memory[addr+i];
         }
