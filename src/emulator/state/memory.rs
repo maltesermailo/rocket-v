@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub struct MemoryManagementUnit {
-    regions: BTreeMap<usize, MemoryRegion>
+    regions: BTreeMap<usize, MemoryRegion>,
+    reservations: Mutex<HashMap<u64, u64>>,
 }
 
 struct MemoryRegion {
@@ -15,6 +16,7 @@ impl MemoryManagementUnit {
     pub(crate) fn new(memory_size: usize) -> Self {
         let mut mmu = Self {
             regions: BTreeMap::new(),
+            reservations: Mutex::new(HashMap::new()),
         };
 
         mmu.add_region(0, memory_size, Box::new(Memory::new(memory_size)));
@@ -148,6 +150,21 @@ impl MemoryManagementUnit {
         } else {
             panic!("Memory access violation at address {:#x}", addr)
         }
+    }
+
+    pub fn set_reservation(&self, hart_id: u64, addr: u64) {
+        let mut reservations = self.reservations.lock().unwrap();
+        reservations.insert(hart_id, addr);
+    }
+
+    pub fn check_reservation(&self, hart_id: u64, addr: u64) -> bool {
+        let reservations = self.reservations.lock().unwrap();
+        reservations.get(&hart_id) == Some(&addr)
+    }
+
+    pub fn clear_reservations_for_addr(&self, addr: u64) {
+        let mut reservations = self.reservations.lock().unwrap();
+        reservations.retain(|_, &mut v| v != addr);
     }
 
     pub fn size(&self) -> u64 {

@@ -691,13 +691,14 @@ pub struct RV64CPUContext {
     pub(crate) x: [u64; 32], //General purpose registers
     pub(crate) pc: u64, //Program counter
     pub(crate) csrs: CSRFile,
+    pub(crate) hart_id: u64,
 
     pub(crate) memory: Arc<RwLock<MemoryManagementUnit>>,
 }
 
 impl RV64CPUContext {
     pub fn new(pc: u64, memory: Arc<RwLock<MemoryManagementUnit>>) -> Self {
-        Self { x: [0; 32], pc, memory: memory, csrs: CSRFile::new() }
+        Self { x: [0; 32], pc, memory: memory, csrs: CSRFile::new(), hart_id: 0 }
     }
 
     #[inline(always)]

@@ -1,4 +1,5 @@
 use crate::emulator::instructions::{InstructionFn, ParsableInstructionGroup};
+use crate::emulator::instructions::rv64::amo::{AtomicOpcodeGroup, ATOMIC_OPCODE};
 use crate::emulator::instructions::rv64::int_op::{IntOp32OpcodeGroup, IntOpOpcodeGroup, OP_OPCODE, OP_32_OPCODE};
 use crate::emulator::instructions::rv64::int_op_imm::{IntOpImmOpcodeGroup, LuiOpcodeGroup, LUI_OPCODE, AUIPC_OPCODE, OP_IMM_OPCODE, OP_IMM_32_OPCODE, AuipcOpcodeGroup, IntOpImm32OpcodeGroup};
 use crate::emulator::instructions::rv64::jump_branch::{JalOpcodeGroup, JalrOpcodeGroup, JAL_OPCODE, JALR_OPCODE, BRANCH_OPCODE, BranchOpcodeGroup};
@@ -11,7 +12,7 @@ pub mod int_op_imm;
 pub mod jump_branch;
 pub mod load_store;
 pub mod system;
-mod amo;
+pub mod amo;
 
 type InstructionResult = Result<(), Exception>;
 
@@ -21,7 +22,7 @@ pub struct RV64InstructionParser {
 impl RV64InstructionParser {
     pub fn parse(instr: u32) -> InstructionFn {
         let opcode: u8 = (instr & 0x7F) as u8;
-        
+
         match opcode {
             OP_OPCODE => IntOpOpcodeGroup::parse(instr),
             OP_32_OPCODE => IntOp32OpcodeGroup::parse(instr),
@@ -35,6 +36,7 @@ impl RV64InstructionParser {
             LOAD_OPCODE => LoadOpcodeGroup::parse(instr),
             STORE_OPCODE => StoreOpcodeGroup::parse(instr),
             SYSTEM_OPCODE => SystemOpcodeGroup::parse(instr),
+            ATOMIC_OPCODE => AtomicOpcodeGroup::parse(instr),
             _ => { |_,_| { Err(Exception::IllegalInstruction) } }
         }
     }
