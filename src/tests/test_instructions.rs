@@ -15,6 +15,9 @@ use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 #[case::slt(0x0041a2b3, 0x8000000000000000, 2, 1)] //-1 < 2 = 1
 #[case::sltu(0x0041b2b3, 0x8000000000000000, 2, 0)] //
 #[case::mul(0x024182b3, 0x7fffffffffffffff, 2, 0xfffffffffffffffe)]
+#[case::mulh(0x024192b3, 0xffffffffffffffff, 2, 0xffffffffffffffff)]
+#[case::mulhu(0x0241b2b3, 0xffffffffffffffff, 2, 0x1)]
+#[case::mulhsu(0x0241a2b3, 2, 0xffffffffffffffff, 0x1)]
 pub fn test_integer_ops(#[case] instr: u32, #[case] x3: u64, #[case] x4: u64, #[case] result: u64) {
     let mut cpu = RV64CPUContext::new(0x1000, MemoryManagementUnit::new_guard(1024));
 
