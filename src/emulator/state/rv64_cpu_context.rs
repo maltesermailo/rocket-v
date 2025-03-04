@@ -48,7 +48,7 @@ bitflags! {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Exception {
     InstructionAddressMisaligned = 0,
     InstructionAccessFault,
@@ -322,10 +322,10 @@ impl CSRFile {
         true
     }
 
-    pub fn read_csr(&self, csr_addr: u16) -> Result<u64, Exception> {
+    pub fn read_csr(&self, csr_addr: u16, override_privs: bool) -> Result<u64, Exception> {
         let required_privilege = self.get_required_privilege_for_csr(csr_addr);
 
-        if (self.current_privilege as u8) < (required_privilege as u8) {
+        if (self.current_privilege as u8) < (required_privilege as u8) && !override_privs {
             return Err(Exception::IllegalInstruction);
         }
 
@@ -386,10 +386,10 @@ impl CSRFile {
         }
     }
 
-    pub fn write_csr(&mut self, csr_addr: u16, value: u64) -> Result<(), Exception> {
+    pub fn write_csr(&mut self, csr_addr: u16, value: u64, override_privs: bool) -> Result<(), Exception> {
         let required_privilege = self.get_required_privilege_for_csr(csr_addr);
 
-        if (self.current_privilege as u8) < (required_privilege as u8) {
+        if (self.current_privilege as u8) < (required_privilege as u8) && !override_privs {
             return Err(Exception::IllegalInstruction);
         }
 
@@ -689,6 +689,7 @@ impl CSRFile {
 
 pub struct RV64CPUContext {
     pub(crate) x: [u64; 32], //General purpose registers
+    pub(crate) f: [f64; 32], //Floating point registers
     pub(crate) pc: u64, //Program counter
     pub(crate) csrs: CSRFile,
     pub(crate) hart_id: u64,
@@ -698,7 +699,7 @@ pub struct RV64CPUContext {
 
 impl RV64CPUContext {
     pub fn new(pc: u64, memory: Arc<RwLock<MemoryManagementUnit>>) -> Self {
-        Self { x: [0; 32], pc, memory: memory, csrs: CSRFile::new(), hart_id: 0 }
+        Self { x: [0; 32], f: [0f64; 32], pc, memory: memory, csrs: CSRFile::new(), hart_id: 0 }
     }
 
     #[inline(always)]

@@ -217,7 +217,7 @@ fn exec_rem(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2: 
     let divisor = cpu_context.x[rs2 as usize] as i64;
 
     let result = if divisor == 0 {
-        dividend  // Division by zero must return -1 (0xFFFFFFFFFFFFFFFF)
+        dividend
     } else if dividend == i64::MIN && divisor == -1 {
         // Overflow case: (-2^63 / -1) is undefined, return 0
         0
@@ -252,7 +252,7 @@ fn exec_remw(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, rs2:
     let result = if divisor == 0 {
         dividend as i64
     } else if dividend == i32::MIN && divisor == -1 {
-        // Overflow case: (-2^63 / -1) is undefined, return -2^63
+        // Overflow case: (-2^63 / -1) is undefined, return 0
         0i64
     } else {
         (dividend % divisor) as i64
@@ -319,6 +319,11 @@ impl ParsableInstructionGroup for IntOp32OpcodeGroup {
             (0x1, 0x0)  => wrap_r_type!(exec_sllw),
             (0x5, 0x0)  => wrap_r_type!(exec_srlw),
             (0x5, 0x20) => wrap_r_type!(exec_sraw),
+            (0x0, 0x01) => wrap_r_type!(exec_mulw),
+            (0x4, 0x01) => wrap_r_type!(exec_divw),
+            (0x5, 0x01) => wrap_r_type!(exec_divuw),
+            (0x6, 0x01) => wrap_r_type!(exec_remw),
+            (0x7, 0x01) => wrap_r_type!(exec_remuw),
             _ => |_,_| { Err(Exception::IllegalInstruction) }
         }
     }

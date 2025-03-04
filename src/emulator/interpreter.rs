@@ -7,7 +7,7 @@ use rustyline::{DefaultEditor, Editor};
 use rustyline::history::DefaultHistory;
 use crate::emulator::instructions::rv64::RV64InstructionParser;
 use crate::emulator::state::memory::{Device, MemoryManagementUnit};
-use crate::emulator::state::rv64_cpu_context::{CSRAddress, Exception, MStatusFlags, RV64CPUContext};
+use crate::emulator::state::rv64_cpu_context::{CSRAddress, Exception, MStatusFlags, PrivilegeMode, RV64CPUContext};
 use crate::emulator::state::rv64_cpu_context::CSRAddress::MStatus;
 
 
@@ -113,13 +113,65 @@ impl Interpreter {
         Interpreter { cpu_context: RV64CPUContext::new(entrypoint, memory_management_unit), cycles: 0 }
     }
 
-    fn handle_exception(&mut self, exception: Exception) {
-        match exception {
-            Exception::EnvironmentCallFromMMode => {
+    fn handle_exception_machine(&mut self, exception: Exception) {
+        let mstatus = self.cpu_context.csrs.read_csr(CSRAddress::MStatus as u16, true).unwrap();
 
+        if(MStatusFlags::from_bits_retain(mstatus).contains(MStatusFlags::MIE)) {
+            let mtvec = self.cpu_context.csrs.read_csr(CSRAddress::MTVec as u16, true).unwrap();
+            self.cpu_context.csrs.write_csr(CSRAddress::MCause as u16, exception as u64, true).unwrap();
+            self.cpu_context.csrs.write_csr(CSRAddress::MEPC as u16, self.cpu_context.pc, true).unwrap();
+            self.cpu_context.csrs.write_csr(CSRAddress::MStatus as u16, mstatus & !MStatusFlags::MIE.bits(), true).unwrap();
+
+            let mode = (mtvec >> 2) & 0b11;
+
+            if mode == 0 {
+                self.cpu_context.pc = mtvec & !0b11;
+            } else if mode == 1 {
+                self.cpu_context.pc = (mtvec & !0b11) + 4 * exception as u64;
+            } else {
+                panic!("Unsupported mtvec mode");
             }
-            _ => {
-                panic!("Unhandled exception: {:?}", exception);
+        } else {
+            panic!("Machine mode exception with MIE disabled");
+        }
+    }
+
+    fn handle_exception(&mut self, exception: Exception) {
+        match self.cpu_context.csrs.get_current_privilege() {
+            PrivilegeMode::Machine => {
+                //Machine mode exceptions are passed directly to the handler
+                self.handle_exception_machine(exception);
+            }
+            PrivilegeMode::Supervisor => {
+                //Supervisor mode exceptions are passed directly to the handler due supervisor not being able to cause traps
+                self.handle_exception_machine(exception);
+            }
+            PrivilegeMode::User => {
+                //User mode exceptions are passed to the supervisor if not delegated.
+                let medeleg = self.cpu_context.csrs.read_csr(CSRAddress::MEDeleg as u16, true).unwrap();
+
+                if (medeleg << exception as u64 & 1 == 0) {
+                    self.cpu_context.csrs.change_privilege(PrivilegeMode::Machine);
+
+                    self.handle_exception_machine(exception);
+                } else {
+                    let stvec = self.cpu_context.csrs.read_csr(CSRAddress::STVec as u16, true).unwrap();
+                    self.cpu_context.csrs.write_csr(CSRAddress::SCause as u16, exception as u64, true).unwrap();
+                    self.cpu_context.csrs.write_csr(CSRAddress::SEPC as u16, self.cpu_context.pc, true).unwrap();
+                    self.cpu_context.csrs.write_csr(CSRAddress::SStatus as u16, self.cpu_context.csrs.read_csr(CSRAddress::SStatus as u16, true).unwrap() & !MStatusFlags::SIE.bits(), true).unwrap();
+
+                    let mode = (stvec >> 2) & 0b11;
+
+                    self.cpu_context.csrs.change_privilege(PrivilegeMode::Supervisor);
+
+                    if mode == 0 {
+                        self.cpu_context.pc = stvec & !0b11;
+                    } else if mode == 1 {
+                        self.cpu_context.pc = (stvec & !0b11) + 4 * exception as u64;
+                    } else {
+                        panic!("Unsupported stvec mode");
+                    }
+                }
             }
         }
     }
@@ -142,22 +194,29 @@ impl Interpreter {
     }
 
     fn check_for_interrupt(&mut self) -> Result<(), Exception> {
-        let mstatus = self.cpu_context.csrs.read_csr(CSRAddress::MStatus as u16)?;
+        let mstatus = self.cpu_context.csrs.read_csr(CSRAddress::MStatus as u16, true)?;
 
-        if (MStatusFlags::MIE.contains(MStatusFlags::from_bits_retain(mstatus))) {
-            let mie = self.cpu_context.csrs.read_csr(CSRAddress::MIE as u16)?;
-            //Check for pending interrupts in MIP
-            let mip = self.cpu_context.csrs.read_csr(CSRAddress::MIP as u16)?;
+        match self.cpu_context.csrs.get_current_privilege() {
+            PrivilegeMode::Machine => {
+                if (MStatusFlags::MIE.contains(MStatusFlags::from_bits_retain(mstatus))) {
+                    let mie = self.cpu_context.csrs.read_csr(CSRAddress::MIE as u16, true)?;
+                    //Check for pending interrupts in MIP
+                    let mip = self.cpu_context.csrs.read_csr(CSRAddress::MIP as u16, true)?;
 
-            for i in 0..64 {
-                let shift = 1 << i;
+                    for i in 0..64 {
+                        let shift = 1 << i;
 
-                if (mip & shift != 0) {
-                    if (mie & shift != 0) {
-                        //Handle interrupt
-                        self.handle_interrupt(i);
+                        if (mip & shift != 0) {
+                            if (mie & shift != 0) {
+                                //Handle interrupt
+                                self.handle_interrupt(i);
+                            }
+                        }
                     }
                 }
+            }
+            _ => {
+                panic!("Unsupported privilege mode");
             }
         }
 

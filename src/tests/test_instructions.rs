@@ -18,6 +18,16 @@ use crate::emulator::state::rv64_cpu_context::{Exception, RV64CPUContext};
 #[case::mulh(0x024192b3, 0xffffffffffffffff, 2, 0xffffffffffffffff)]
 #[case::mulhu(0x0241b2b3, 0xffffffffffffffff, 2, 0x1)]
 #[case::mulhsu(0x0241a2b3, 2, 0xffffffffffffffff, 0x1)]
+#[case::div(0x0241c2b3, 2, 2, 1)]
+#[case::div_by_zero(0x0241c2b3, 2, 0, 0xFFFFFFFFFFFFFFFF)]
+#[case::div_overflow(0x0241c2b3, 0x8000000000000000, 0xFFFFFFFFFFFFFFFF, 0x8000000000000000)]
+#[case::divu(0x0241d2b3, 2, 2, 1)]
+#[case::divu_by_zero(0x0241d2b3, 2, 0, 0xFFFFFFFFFFFFFFFF)]
+#[case::rem(0x0241e2b3, 7, 4, 3)]
+#[case::rem_by_zero(0x0241e2b3, 2, 0, 2)]
+#[case::rem_overflow(0x0241e2b3, 0x8000000000000000, 0xFFFFFFFFFFFFFFFF, 0)]
+#[case::remu(0x0241f2b3, 7, 4, 3)]
+#[case::remu_by_zero(0x0241f2b3, 2, 0, 2)]
 pub fn test_integer_ops(#[case] instr: u32, #[case] x3: u64, #[case] x4: u64, #[case] result: u64) {
     let mut cpu = RV64CPUContext::new(0x1000, MemoryManagementUnit::new_guard(1024));
 
@@ -38,6 +48,17 @@ pub fn test_integer_ops(#[case] instr: u32, #[case] x3: u64, #[case] x4: u64, #[
 #[case::sllw(0x004192bb, 2, 1, 4)]
 #[case::srlw(0x0041d2bb, 4, 1, 2)]
 #[case::sraw(0x4041d2bb, 0x80000000, 1, 0xc0000000)]
+#[case::mulw(0x024182bb, 0x7fffffff, 2, 0xfffffffe)]
+#[case::divw(0x0241c2bb, 2, 2, 1)]
+#[case::divw_by_zero(0x0241c2bb, 2, 0, 0xffffffff)]
+#[case::divw_overflow(0x0241c2bb, 0x80000000, 0xffffffff, 0x80000000)]
+#[case::divuw(0x0241d2bb, 2, 2, 1)]
+#[case::divuw_by_zero(0x0241d2bb, 2, 0, 0xffffffff)]
+#[case::remw(0x0241e2bb, 7, 4, 3)]
+#[case::remw_by_zero(0x0241e2bb, 2, 0, 2)]
+#[case::remw_overflow(0x0241e2bb, 0x80000000, 0xffffffff, 0)]
+#[case::remuw(0x0241f2bb, 7, 4, 3)]
+#[case::remuw_by_zero(0x0241f2bb, 2, 0, 2)]
 pub fn test_integer_ops_32(#[case] instr: u32, #[case] x3: u32, #[case] x4: u32, #[case] result: u32) {
     let mut cpu = RV64CPUContext::new(0x1000, MemoryManagementUnit::new_guard(1024));
 
@@ -49,7 +70,7 @@ pub fn test_integer_ops_32(#[case] instr: u32, #[case] x3: u32, #[case] x4: u32,
     let instr_result = instr_fn(&mut cpu, instr);
 
     assert!(instr_result.is_ok(), "exception {:?}", instr_result.expect_err("This shouldn't happen at all"));
-    assert_eq!(cpu.x[5], result as i32 as i64 as u64);
+    assert_eq!(cpu.x[5] as u32, result);
 }
 
 #[rstest]

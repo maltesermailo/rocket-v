@@ -23,6 +23,80 @@ fn exec_ebreak(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, im
     Err(Exception::Breakpoint)
 }
 
+fn exec_csrrw(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    let value = cpu_context.x[rs1 as usize];
+    cpu_context.csrs.write_csr(imm as u16, value, false)?;
+
+    Ok(())
+}
+
+fn exec_csrrs(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    if(rs1 == 0) { return Ok(()) }
+
+    let value = cpu_context.x[rs1 as usize];
+    cpu_context.csrs.write_csr(imm as u16, old_value | value, false)?;
+
+    Ok(())
+}
+
+fn exec_csrrc(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    if(rs1 == 0) { return Ok(()) }
+
+    let value = !cpu_context.x[rs1 as usize];
+    cpu_context.csrs.write_csr(imm as u16, old_value & value, false)?;
+
+    Ok(())
+}
+
+fn exec_csrrwi(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    let value = rs1;
+    cpu_context.csrs.write_csr(imm as u16, value as u64, false)?;
+
+    Ok(())
+}
+
+fn exec_csrrsi(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    if(rs1 == 0) { return Ok(()) }
+
+    let value = rs1 as u64;
+    cpu_context.csrs.write_csr(imm as u16, old_value | value, false)?;
+
+    Ok(())
+}
+
+fn exec_csrrci(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    let old_value = cpu_context.csrs.read_csr(imm as u16, false)?;
+
+    cpu_context.set_register(rd as usize, old_value);
+
+    if(rs1 == 0) { return Ok(()) }
+
+    let value = !(rs1 as u64);
+    cpu_context.csrs.write_csr(imm as u16, old_value & value, false)?;
+
+    Ok(())
+}
+
 impl ParsableInstructionGroup for SystemOpcodeGroup {
     fn parse(instr: u32) -> InstructionFn {
         let funct3 = ((instr >> 12) & 0x07) as u8;
@@ -37,6 +111,12 @@ impl ParsableInstructionGroup for SystemOpcodeGroup {
                     _ => |_,_| { Err(Exception::IllegalInstruction) },
                 }
             },
+            0x1 => wrap_i_type_sh!(exec_csrrw),
+            0x2 => wrap_i_type_sh!(exec_csrrs),
+            0x3 => wrap_i_type_sh!(exec_csrrc),
+            0x5 => wrap_i_type_sh!(exec_csrrwi),
+            0x6 => wrap_i_type_sh!(exec_csrrsi),
+            0x7 => wrap_i_type_sh!(exec_csrrci),
             _ => |_,_| { Err(Exception::IllegalInstruction) },
         }
     }
