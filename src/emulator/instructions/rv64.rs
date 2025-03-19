@@ -13,6 +13,7 @@ pub mod jump_branch;
 pub mod load_store;
 pub mod system;
 pub mod amo;
+pub mod fp;
 
 type InstructionResult = Result<(), Exception>;
 

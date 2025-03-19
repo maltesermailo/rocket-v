@@ -47,6 +47,16 @@ bitflags! {
     }
 }
 
+bitflags! {
+    pub struct FFlags: u64 {
+        const NX = 1 << 0;   // Inexact
+        const UF = 1 << 0;   // Underflow
+        const OF = 1 << 1;   // Overflow
+        const DZ = 1 << 3;   // Divide by Zero
+        const NV = 1 << 4;   // Invalid operation
+    }
+}
+
 
 #[derive(Debug, Copy, Clone)]
 pub enum Exception {
@@ -120,6 +130,11 @@ pub enum CSRAddress {
     // Machine Counters
     MCycle = 0xB00,
     MInstRet = 0xB02,
+
+    //User mode registers
+    FCSR = 0x003,
+    FRM = 0x002,
+    FFlags = 0x001,
 }
 
 const FS_SHIFT: u64 = 13;
@@ -195,8 +210,6 @@ pub struct CSRFile {
     sstateen3: u64,
 
     //Floating point registers
-    fflags: u64,
-    frm: u64,
     fcsr: u64,
 
     //User mode registers
@@ -244,8 +257,6 @@ impl CSRFile {
             sstateen1: 0,
             sstateen2: 0,
             sstateen3: 0,
-            fflags: 0,
-            frm: 0,
             fcsr: 0,
             cycle: 0,
             time: 0,
@@ -380,6 +391,11 @@ impl CSRFile {
             x if x == CSRAddress::SStateEn1 as u16 => Ok(self.sstateen1),
             x if x == CSRAddress::SStateEn2 as u16 => Ok(self.sstateen2),
             x if x == CSRAddress::SStateEn3 as u16 => Ok(self.sstateen3),
+
+            // Floating-point CSRs
+            x if x == CSRAddress::FCSR as u16 => Ok(self.fcsr),
+            x if x == CSRAddress::FRM as u16 => Ok(self.read_frm()),
+            x if x == CSRAddress::FFlags as u16 => Ok(self.read_fflags()),
 
             // Invalid or unimplemented CSR
             _ => Err(Exception::IllegalInstruction),
@@ -546,9 +562,27 @@ impl CSRFile {
                 Ok(())
             },
 
+            // Floating-point CSRs
+            x if x == CSRAddress::FCSR as u16 => {
+                self.fcsr = value & 0xFF;  // Only lower 8 bits are used
+                Ok(())
+            },
+            x if x == CSRAddress::FRM as u16 => {
+                self.write_frm(value);
+                Ok(())
+            },
+            x if x == CSRAddress::FFlags as u16 => {
+                self.write_fflags(value);
+                Ok(())
+            },
+
             // Invalid or unimplemented CSR
             _ => Err(Exception::IllegalInstruction),
         }
+    }
+
+    pub fn set_fcsr_bit(&mut self, bit: u64) {
+        self.fcsr |= bit;
     }
 
     // SSTATUS is a subset of MSTATUS
@@ -591,6 +625,16 @@ impl CSRFile {
     fn read_sie(&self) -> u64 {
         // SIE is MIE masked by mideleg
         self.mie & self.mideleg
+    }
+
+    // Read FFLAGS (bits 4:0 of FCSR)
+    fn read_fflags(&self) -> u64 {
+        self.fcsr & 0x1F  // Lower 5 bits
+    }
+
+    // Read FRM (bits 7:5 of FCSR)
+    fn read_frm(&self) -> u64 {
+        (self.fcsr >> 5) & 0x7  // Extract bits 7:5
     }
 
     fn write_sie(&mut self, value: u64) {
@@ -685,6 +729,22 @@ impl CSRFile {
         // Set the new values for delegated bits
         self.mie = mie.bits();
     }
+
+    // Write FFLAGS (bits 4:0 of FCSR)
+    fn write_fflags(&mut self, value: u64) {
+        // Clear existing flags
+        self.fcsr &= !0x1F;
+        // Set new flags (only use the lower 5 bits)
+        self.fcsr |= value & 0x1F;
+    }
+
+    // Write FRM (bits 7:5 of FCSR)
+    fn write_frm(&mut self, value: u64) {
+        // Clear existing rounding mode
+        self.fcsr &= !(0x7 << 5);
+        // Set new rounding mode (only use 3 bits)
+        self.fcsr |= (value & 0x7) << 5;
+    }
 }
 
 pub struct RV64CPUContext {
@@ -713,5 +773,18 @@ impl RV64CPUContext {
         }
 
         self.x[register] = value;
+    }
+
+    #[inline(always)]
+    pub(crate) fn set_register_float(&mut self, register: usize, value: f64) {
+        if(register == 0) {
+            return
+        }
+
+        if(register > 31) {
+            return
+        }
+
+        self.f[register] = value;
     }
 }

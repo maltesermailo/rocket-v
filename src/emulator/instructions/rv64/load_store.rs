@@ -18,6 +18,10 @@ type LoadExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, 
 type StoreExecutionFn = fn(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, imm: u64);
 
 fn exec_load_byte(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address >= cpu_context.memory.read().unwrap().size() {
@@ -35,6 +39,10 @@ fn exec_load_byte(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8,
 }
 
 fn exec_load_hword(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address + 1 >= cpu_context.memory.read().unwrap().size() {
@@ -52,6 +60,10 @@ fn exec_load_hword(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8
 }
 
 fn exec_load_word(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address + 3 >= cpu_context.memory.read().unwrap().size() {
@@ -69,6 +81,10 @@ fn exec_load_word(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8,
 }
 
 fn exec_load_dword(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address + 7 >= cpu_context.memory.read().unwrap().size() {
@@ -81,6 +97,10 @@ fn exec_load_dword(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8
 }
 
 fn exec_load_byte_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address >= cpu_context.memory.read().unwrap().size() {
@@ -93,6 +113,10 @@ fn exec_load_byte_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8,
 }
 
 fn exec_load_hword_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address + 1 >= cpu_context.memory.read().unwrap().size() {
@@ -105,6 +129,10 @@ fn exec_load_hword_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8
 }
 
 fn exec_load_word_unsigned(cpu_context: &mut RV64CPUContext, instr: u32, rd: u8, rs1: u8, imm: u64) -> InstructionResult {
+    if(rd == 0) {
+        return Err(Exception::LoadAddressMisaligned);
+    }
+
     let address = cpu_context.x[rs1 as usize].wrapping_add(imm);
 
     if address + 3 >= cpu_context.memory.read().unwrap().size() {
